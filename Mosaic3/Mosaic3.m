@@ -2,6 +2,7 @@ classdef Mosaic3 < handle
     
     properties
         handle
+        buffer
     end
  
     methods
@@ -51,6 +52,10 @@ classdef Mosaic3 < handle
             ret = AT_GetInt(obj.handle,str);
         end
         
+        function ret = System_getInt(obj,str)
+            ret = AT_GetInt(1,str);
+        end
+        
         function ret = getIntMax(obj,str)
             ret = AT_GetIntMax(obj.handle,str);
         end
@@ -61,6 +66,10 @@ classdef Mosaic3 < handle
         
         function ret = getString(obj,str)
             ret = AT_GetString(obj.handle,str);
+        end
+        
+        function ret = System_getString(obj,str)
+            ret = AT_GetString(1,str);
         end
         
         function ret = getStringMaxLength(obj,str)
@@ -92,7 +101,8 @@ classdef Mosaic3 < handle
         end
         
         function queueBuffer(obj,buf)
-            AT_QueueBuffer(obj.handle,buf,length(buf));
+            obj.buffer = buf;
+            AT_QueueBuffer(obj.handle,obj.buffer,length(buf));
         end
         
         function setBool(obj,str,val)

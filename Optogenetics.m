@@ -5,6 +5,7 @@ addpath(path);
        
 %% check that dll are in the system path
 
+
 %% launch program
 XCiteComPort = 'COM9';
 DMDindex = 0;
