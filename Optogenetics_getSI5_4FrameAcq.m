@@ -1,6 +1,6 @@
 function Optogenetics_getSI5_4FrameAcq(source,event,varargin)
 
-    channel = 2;
+    channel = varargin{1};
     hSI = source.hSI;
     OP = evalin('base','OP');
     lastStripe = hSI.hDisplay.stripeDataBuffer{hSI.hDisplay.stripeDataBufferPointer};

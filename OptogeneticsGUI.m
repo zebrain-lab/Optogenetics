@@ -2240,6 +2240,7 @@ classdef OptogeneticsGUI < handle
                         disp('Acquiring 2P image')
                         % set scanimage zoom factor
                         obj.hardware.hSI.hRoiManager.scanZoomFactor = zoomlist(i);
+                        obj.hardware.hSI.startFocus();
                         
                         % acquire and average 2P frames
                         imgaccum2P = zeros(size(obj.images.TwoP));
@@ -2250,6 +2251,8 @@ classdef OptogeneticsGUI < handle
                         end
                         imgaccum2P = imadjust(imgaccum2P);
                         
+                        obj.hardware.hSI.abort();
+                        
                         [movingPoints fixedPoints] = cpselect(imgaccum2P,imgaccumCam,'Wait',true);
                         movingPoints = [movingPoints ones(size(movingPoints,1),1)];
                         fixedPoints = [fixedPoints ones(size(fixedPoints,1),1)];
@@ -2257,6 +2260,9 @@ classdef OptogeneticsGUI < handle
                         T(:,3) = [0;0;1];
                         Tforward(:,:,i) = T;
                     end
+                    
+                    % go back to a zoom factor of 1
+                    obj.hardware.hSI.hRoiManager.scanZoomFactor = 1;
                     
                     % fit model for each matrix coefficient
                     lm11 = fitlm(zoomlist,squeeze(Tforward(1,1,:)));
@@ -2268,12 +2274,13 @@ classdef OptogeneticsGUI < handle
 
                     cam2twop_slope = [lm11.Coefficients.Estimate(2) lm12.Coefficients.Estimate(2) 0;
                                   lm21.Coefficients.Estimate(2) lm22.Coefficients.Estimate(2) 0;
-                                  lm31.Coefficients.Estimate(2) lm32.Coefficients.Estimate(2) 0];
+                                  lm31.Coefficients.Estimate(2) lm32.Coefficients.Estimate(2) 0]
 
                     cam2twop_icpt = [lm11.Coefficients.Estimate(1) lm12.Coefficients.Estimate(1) 0;
                                   lm21.Coefficients.Estimate(1) lm22.Coefficients.Estimate(1) 0;
-                                  lm31.Coefficients.Estimate(1) lm32.Coefficients.Estimate(1) 1];
+                                  lm31.Coefficients.Estimate(1) lm32.Coefficients.Estimate(1) 1]
                     
+                    % check that, maybe it's the opposite          
                     obj.affineTransform.Cam2TwoP = @(z) z.*cam2twop_slope + cam2twop_icpt;
                     obj.affineTransform.TwoP2Cam = @(z) inv(obj.affineTransform.Cam2TwoP(z));
                     disp('Done')
