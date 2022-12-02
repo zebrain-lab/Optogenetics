@@ -2021,6 +2021,12 @@ classdef OptogeneticsGUI < handle
                     
                 case 'ExposeButton'
                     % validate
+                    
+                    if isempty(obj.hardware.DMD.buffer)
+                        disp('Please queue buffer before exposing');
+                        return;
+                    end
+                    
                     switch obj.figMain.DMD.controls.operation.Value
                         case {3,4}
                             startind = str2num(obj.figMain.DMD.roi.seqmem.seqstartindedit.String);
