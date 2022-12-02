@@ -2223,23 +2223,11 @@ classdef OptogeneticsGUI < handle
         function CalibrationCallback(obj,src,~)
              switch src.Tag
                 case 'Register2PCamButton'
+                    zoomlist = [1.0 1.5 2.0 2.5 3.0 3.5];
                     preview(obj.hardware.Cam,obj.figMain.DMD.mask.imageCam);    
                     
-                    figure;
-                    
-                    % acquire and average 2P frames
-                    imgaccum2P = zeros(size(obj.images.TwoP));
-                    tic;
-                    while toc < 10
-                        imgaccum2P = imgaccum2P + obj.images.TwoP;
-                        pause(0.5);
-                    end
-                    imgaccum2P = imadjust(imgaccum2P);
-                    
-                    subplot(1,2,1);
-                    imshow(imgaccum2P);
-                    
                     % acquire average image from camera 
+                    disp('Acquiring camera image')
                     imgaccumCam = zeros(size(obj.images.Cam));
                     tic;
                     while toc < 10
@@ -2247,19 +2235,55 @@ classdef OptogeneticsGUI < handle
                         pause(0.5);
                     end
                     imgaccumCam = imadjust(imgaccumCam);
+            
+                    for i = 1:length(zoomlist)
+                        disp('Acquiring 2P image')
+                        % set scanimage zoom factor
+                        obj.hardware.hSI.hRoiManager.scanZoomFactor = zoomlist(i);
+                        
+                        % acquire and average 2P frames
+                        imgaccum2P = zeros(size(obj.images.TwoP));
+                        tic;
+                        while toc < 10
+                            imgaccum2P = imgaccum2P + obj.images.TwoP;
+                            pause(0.5);
+                        end
+                        imgaccum2P = imadjust(imgaccum2P);
+                        
+                        [movingPoints fixedPoints] = cpselect(imgaccum2P,imgaccumCam,'Wait',true);
+                        movingPoints = [movingPoints ones(size(movingPoints,1),1)];
+                        fixedPoints = [fixedPoints ones(size(fixedPoints,1),1)];
+                        T = fixedPoints\movingPoints;
+                        T(:,3) = [0;0;1];
+                        Tforward(:,:,i) = T;
+                    end
                     
-                    subplot(1,2,2);
-                    imshow(imgaccumCam);
+                    % fit model for each matrix coefficient
+                    lm11 = fitlm(zoomlist,squeeze(Tforward(1,1,:)));
+                    lm12 = fitlm(zoomlist,squeeze(Tforward(1,2,:)));
+                    lm21 = fitlm(zoomlist,squeeze(Tforward(2,1,:)));
+                    lm22 = fitlm(zoomlist,squeeze(Tforward(2,2,:)));
+                    lm31 = fitlm(zoomlist,squeeze(Tforward(3,1,:)));
+                    lm32 = fitlm(zoomlist,squeeze(Tforward(3,2,:)));
+
+                    cam2twop_slope = [lm11.Coefficients.Estimate(2) lm12.Coefficients.Estimate(2) 0;
+                                  lm21.Coefficients.Estimate(2) lm22.Coefficients.Estimate(2) 0;
+                                  lm31.Coefficients.Estimate(2) lm32.Coefficients.Estimate(2) 0];
+
+                    cam2twop_icpt = [lm11.Coefficients.Estimate(1) lm12.Coefficients.Estimate(1) 0;
+                                  lm21.Coefficients.Estimate(1) lm22.Coefficients.Estimate(1) 0;
+                                  lm31.Coefficients.Estimate(1) lm32.Coefficients.Estimate(1) 1];
                     
-                    % register images
-                    [optimizer, metric] = imregconfig('multimodal');
-                    t1 = imregtform(imgaccum2P,imgaccumCam,'affine',optimizer,metric);
-                    t2 = imregtform(imgaccumCam,imgaccum2P,'affine',optimizer,metric);
+                    obj.affineTransform.Cam2TwoP = @(z) z.*cam2twop_slope + cam2twop_icpt;
+                    obj.affineTransform.TwoP2Cam = @(z) inv(obj.affineTransform.Cam2TwoP(z));
+                    disp('Done')
                     
                 case 'RegisterSensor2PButton'
                     % compute transform as the composition of the other two
-                    obj.affineTransform.TwoP2Sensor = @(z) obj.affineTransform.TwoP2Cam(z) * obj.affineTransform.Cam2Sensor;                        
-                    obj.affineTransform.Sensor2TwoP = @(z) obj.affineTransform.Sensor2Cam * obj.affineTransform.Cam2TwoP(z);
+                    TwoP2Sensor = @(z) obj.affineTransform.TwoP2Cam(z) * obj.affineTransform.Cam2Sensor;
+                    Sensor2TwoP = @(z) obj.affineTransform.Sensor2Cam * obj.affineTransform.Cam2TwoP(z);
+                    obj.affineTransform.TwoP2Sensor = TwoP2Sensor;                       
+                    obj.affineTransform.Sensor2TwoP = Sensor2TwoP;
                     
                 case 'RegisterCamSensorButton'
                    
